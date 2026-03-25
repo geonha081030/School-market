@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>학교 플리마켓</title>
+
+<style>
+body { font-family: sans-serif; background:#f5f5f5; }
+.container { max-width:500px; margin:auto; }
+.card { background:white; padding:15px; margin:10px; border-radius:10px; }
+img { width:100%; border-radius:10px; }
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+<div id="loginBox" class="card">
+  <input id="email" placeholder="이메일">
+  <input id="password" type="password" placeholder="비밀번호">
+  <button onclick="signup()">회원가입</button>
+  <button onclick="login()">로그인</button>
+</div>
+
+<div id="main" style="display:none;">
+
+<div class="card">
+  <input id="title" placeholder="상품명">
+  <input id="price" placeholder="가격">
+  <input type="file" id="image">
+  <button onclick="addItem()">등록</button>
+</div>
+
+<div class="card">
+  <h3>상품 목록</h3>
+  <div id="items"></div>
+</div>
+
+<div class="card">
+  <h3>채팅</h3>
+  <div id="chatBox"></div>
+  <input id="chatInput">
+  <button onclick="sendMessage()">전송</button>
+</div>
+
+<button onclick="logout()">로그아웃</button>
+
+</div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+
+import { 
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  onAuthStateChanged, signOut
+} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
+import { 
+  getFirestore, collection, addDoc, onSnapshot, query, orderBy 
+} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
+
+import { 
+  getStorage, ref, uploadBytes, getDownloadURL 
+} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAU-Zt-ShYQGIQCA8cI4ScmN-8YtZHd9XI",
+  authDomain: "fleamarket-ec82d.firebaseapp.com",
+  projectId: "fleamarket-ec82d",
+  storageBucket: "fleamarket-ec82d.firebasestorage.app",
+  messagingSenderId: "528134193397",
+  appId: "1:528134193397:web:0e58c79e155590c2d605bc"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth();
+const db = getFirestore();
+const storage = getStorage();
+
+let user;
+
+window.signup = async function(){
+  await createUserWithEmailAndPassword(auth, email.value, password.value);
+}
+
+window.login = async function(){
+  await signInWithEmailAndPassword(auth, email.value, password.value);
+}
+
+window.logout = function(){
+  signOut(auth);
+}
+
+onAuthStateChanged(auth, (u)=>{
+  if(u){
+    user = u;
+    loginBox.style.display="none";
+    main.style.display="block";
+    loadItems();
+    loadChat();
+  }
+});
+
+window.addItem = async function(){
+  const file = image.files[0];
+  const storageRef = ref(storage, 'items/' + Date.now());
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+
+  await addDoc(collection(db, "items"), {
+    title: title.value,
+    price: price.value,
+    image: url,
+    user: user.email,
+    created: Date.now()
+  });
+}
+
+function loadItems(){
+  const q = query(collection(db, "items"), orderBy("created","desc"));
+
+  onSnapshot(q, (snapshot)=>{
+    items.innerHTML="";
+    snapshot.forEach(doc=>{
+      const d = doc.data();
+      items.innerHTML += `
+        <div class="card">
+          <img src="${d.image}">
+          <b>${d.title}</b>
+          <p>${d.price}원</p>
+        </div>
+      `;
+    });
+  });
+}
+
+window.sendMessage = async function(){
+  await addDoc(collection(db, "chat"), {
+    text: chatInput.value,
+    user: user.email,
+    time: Date.now()
+  });
+  chatInput.value="";
+}
+
+function loadChat(){
+  const q = query(collection(db, "chat"), orderBy("time"));
+
+  onSnapshot(q, (snapshot)=>{
+    chatBox.innerHTML="";
+    snapshot.forEach(doc=>{
+      const d = doc.data();
+      chatBox.innerHTML += `<p><b>${d.user}:</b> ${d.text}</p>`;
+    });
+  });
+}
+
+</script>
+
+</body>
+</html>
