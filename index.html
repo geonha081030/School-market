@@ -8,7 +8,7 @@
 body { font-family: sans-serif; background:#f5f5f5; }
 .container { max-width:500px; margin:auto; }
 .card { background:white; padding:15px; margin:10px; border-radius:10px; }
-img { width:100%; border-radius:10px; }
+button { margin-top:5px; }
 </style>
 
 </head>
@@ -18,18 +18,16 @@ img { width:100%; border-radius:10px; }
 <div class="container">
 
 <div id="loginBox" class="card">
-  <input id="email" placeholder="이메일">
-  <input id="password" type="password" placeholder="비밀번호">
-  <button onclick="signup()">회원가입</button>
-  <button onclick="login()">로그인</button>
+  <input id="username" placeholder="이름 입력">
+  <button onclick="login()">입장</button>
 </div>
 
 <div id="main" style="display:none;">
 
 <div class="card">
+  <h3 id="welcome"></h3>
   <input id="title" placeholder="상품명">
   <input id="price" placeholder="가격">
-  <input type="file" id="image">
   <button onclick="addItem()">등록</button>
 </div>
 
@@ -38,125 +36,84 @@ img { width:100%; border-radius:10px; }
   <div id="items"></div>
 </div>
 
-<div class="card">
-  <h3>채팅</h3>
-  <div id="chatBox"></div>
-  <input id="chatInput">
-  <button onclick="sendMessage()">전송</button>
-</div>
-
 <button onclick="logout()">로그아웃</button>
 
 </div>
 
 </div>
 
-<script type="module">
+<script>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+let user = localStorage.getItem("user");
+let items = JSON.parse(localStorage.getItem("items")) || [];
 
-import { 
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  onAuthStateChanged, signOut
-} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-
-import { 
-  getFirestore, collection, addDoc, onSnapshot, query, orderBy 
-} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js";
-
-import { 
-  getStorage, ref, uploadBytes, getDownloadURL 
-} from "https://www.gstatic.com/firebasejs/12.11.0/firebase-storage.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAU-Zt-ShYQGIQCA8cI4ScmN-8YtZHd9XI",
-  authDomain: "fleamarket-ec82d.firebaseapp.com",
-  projectId: "fleamarket-ec82d",
-  storageBucket: "fleamarket-ec82d.firebasestorage.app",
-  messagingSenderId: "528134193397",
-  appId: "1:528134193397:web:0e58c79e155590c2d605bc"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth();
-const db = getFirestore();
-const storage = getStorage();
-
-let user;
-
-window.signup = async function(){
-  await createUserWithEmailAndPassword(auth, email.value, password.value);
+// 로그인
+function login(){
+  const name = document.getElementById("username").value;
+  if(!name) return alert("이름 입력하세요");
+  
+  localStorage.setItem("user", name);
+  location.reload();
 }
 
-window.login = async function(){
-  await signInWithEmailAndPassword(auth, email.value, password.value);
+// 자동 로그인
+if(user){
+  document.getElementById("loginBox").style.display="none";
+  document.getElementById("main").style.display="block";
+  document.getElementById("welcome").innerText = user + "님 환영!";
+  render();
 }
 
-window.logout = function(){
-  signOut(auth);
+// 로그아웃
+function logout(){
+  localStorage.removeItem("user");
+  location.reload();
 }
 
-onAuthStateChanged(auth, (u)=>{
-  if(u){
-    user = u;
-    loginBox.style.display="none";
-    main.style.display="block";
-    loadItems();
-    loadChat();
-  }
-});
+// 상품 등록
+function addItem(){
+  const title = document.getElementById("title").value;
+  const price = document.getElementById("price").value;
 
-window.addItem = async function(){
-  const file = image.files[0];
-  const storageRef = ref(storage, 'items/' + Date.now());
-  await uploadBytes(storageRef, file);
-  const url = await getDownloadURL(storageRef);
+  if(!title || !price) return alert("다 입력하세요");
 
-  await addDoc(collection(db, "items"), {
-    title: title.value,
-    price: price.value,
-    image: url,
-    user: user.email,
-    created: Date.now()
-  });
+  const item = {
+    id: Date.now(),
+    title,
+    price,
+    user
+  };
+
+  items.push(item);
+  localStorage.setItem("items", JSON.stringify(items));
+
+  render();
+
+  document.getElementById("title").value="";
+  document.getElementById("price").value="";
 }
 
-function loadItems(){
-  const q = query(collection(db, "items"), orderBy("created","desc"));
-
-  onSnapshot(q, (snapshot)=>{
-    items.innerHTML="";
-    snapshot.forEach(doc=>{
-      const d = doc.data();
-      items.innerHTML += `
-        <div class="card">
-          <img src="${d.image}">
-          <b>${d.title}</b>
-          <p>${d.price}원</p>
-        </div>
-      `;
-    });
-  });
+// 삭제
+function deleteItem(id){
+  items = items.filter(i => i.id !== id);
+  localStorage.setItem("items", JSON.stringify(items));
+  render();
 }
 
-window.sendMessage = async function(){
-  await addDoc(collection(db, "chat"), {
-    text: chatInput.value,
-    user: user.email,
-    time: Date.now()
-  });
-  chatInput.value="";
-}
+// 화면 출력
+function render(){
+  const box = document.getElementById("items");
+  box.innerHTML = "";
 
-function loadChat(){
-  const q = query(collection(db, "chat"), orderBy("time"));
-
-  onSnapshot(q, (snapshot)=>{
-    chatBox.innerHTML="";
-    snapshot.forEach(doc=>{
-      const d = doc.data();
-      chatBox.innerHTML += `<p><b>${d.user}:</b> ${d.text}</p>`;
-    });
+  items.forEach(i=>{
+    box.innerHTML += `
+      <div class="card">
+        <b>${i.title}</b>
+        <p>${i.price}원</p>
+        <small>${i.user}</small><br>
+        <button onclick="deleteItem(${i.id})">삭제</button>
+      </div>
+    `;
   });
 }
 
